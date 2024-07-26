@@ -72,3 +72,7 @@ Plugins/*/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+Content/MS_WoodenPlanksV2/Surfaces/Japanese_Wooden_Planks_2x2_M_00/Japanese_Wooden_Planks_2x2_M_00_inst.uasset
+Content/MS_WoodenPlanksV2/Surfaces/Japanese_Wooden_Planks_2x2_M_00/tltldigfw_8K_Albedo.uasset
+Content/MS_WoodenPlanksV2/Surfaces/Japanese_Wooden_Planks_2x2_M_00/tltldigfw_8K_Normal.uasset
+Content/MS_WoodenPlanksV2/Surfaces/Japanese_Wooden_Planks_2x2_M_00/tltldigfw_8K_Roughness.uasset

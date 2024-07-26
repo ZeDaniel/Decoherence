@@ -36,21 +36,11 @@ void ATimeSplitter::UnSplit()
 	//Re-attach assets to the roots. Specifically because physics actors need to be reattached
 	AttachActorsToRoots();
 
-	//Set get current offset
-	float CurveMin;
-	float CurveMax;
-	SplitOffsetVectorCurve->GetTimeRange(CurveMin, CurveMax);
-	FVector CurrentOffset = SplitOffsetVectorCurve->GetVectorValue(CurveMax);
+	//Set player locations
+	SetPlayerLocations();
 
-	//Set new root locations
-	if (ActorsToDupe.Num() > 0 && DupedActors.Num() > 0)
-	{
-		OriginalRootLocation = ActorsToDupe[0]->GetActorLocation() - CurrentOffset;
-		DupeRootLocation = DupedActors[0]->GetActorLocation() + CurrentOffset;
-	}
-	
-	OriginalPlayerLocation = Player->GetActorLocation() - CurrentOffset;
-	OriginalCloneLocation = ClonedPlayer->GetActorLocation() + CurrentOffset;
+	//Set current actor rotations
+	SetActorRotations();
 
 	/* Move the new root actors by their offset via the offset timeline. Re-enables physics states when done*/
 	SplitTimelineComp->Reverse();
@@ -67,20 +57,10 @@ void ATimeSplitter::ResetSplit()
 	//Re-attach assets to the roots. Specifically because physics actors need to be reattached
 	AttachActorsToRoots();
 
-	//Set get current offset
-	float CurveMin;
-	float CurveMax;
-	SplitOffsetVectorCurve->GetTimeRange(CurveMin, CurveMax);
-	FVector CurrentOffset = SplitOffsetVectorCurve->GetVectorValue(CurveMax);
-
-	//Set new root locations of non-player actors
-	if (ActorsToDupe.Num() > 0 && DupedActors.Num() > 0)
-	{
-		OriginalRootLocation = ActorsToDupe[0]->GetActorLocation() - CurrentOffset;
-		DupeRootLocation = DupedActors[0]->GetActorLocation() + CurrentOffset;
-	}
-
 	bTimeIsResetting = true;
+
+	//Set current actor rotations
+	SetActorRotations();
 
 	/* Move the new root actors by their offset via the offset timeline. Re-enables physics states when done*/
 	SplitTimelineComp->Reverse();
@@ -93,6 +73,12 @@ void ATimeSplitter::BeginPlay()
 
 	//Bind offset track to correlating function
 	UpdateOffsetTrack.BindDynamic(this, &ATimeSplitter::UpdateActorsOffsets);
+
+	//Bind rotation track to correlating function
+	UpdateActorRotationTrack.BindDynamic(this, &ATimeSplitter::UpdateActorsRotations);
+
+	//Bind rotation track to correlating function
+	UpdateCloneRotationTrack.BindDynamic(this, &ATimeSplitter::UpdateCloneRotations);
 
 	//Bind re-enable actors event to correlating function
 	ReenableActorsEvent.BindDynamic(this, &ATimeSplitter::EndTimelineDelegate);
@@ -111,6 +97,18 @@ void ATimeSplitter::BeginPlay()
 
 		SplitTimelineComp->AddEvent(CurveMax, ReenableActorsEvent);
 		SplitTimelineComp->AddEvent(CurveMin, DestroyDesignatedActorsEvent);
+	}
+
+	//If rotation curve isn't null, bind the graph to the update function
+	if (SplitActorRotationVectorCurve)
+	{
+		SplitTimelineComp->AddInterpVector(SplitActorRotationVectorCurve, UpdateActorRotationTrack);
+	}
+
+	//If rotation curve isn't null, bind the graph to the update function
+	if (SplitCloneRotationVectorCurve)
+	{
+		SplitTimelineComp->AddInterpVector(SplitCloneRotationVectorCurve, UpdateCloneRotationTrack);
 	}
 	
 
@@ -137,6 +135,7 @@ void ATimeSplitter::OnBoxEndOverlap(UPrimitiveComponent* OverlappedComponent, AA
 				// Save character to dupe during splittime
 				if (Character->ActorHasTag("Player"))
 				{
+					bGateActive = false;
 					Player = Character;
 				}
 				SplitTime();
@@ -179,6 +178,9 @@ void ATimeSplitter::SplitTime()
 
 			AttachActorsToRoots();
 
+			//Set current actor rotations
+			SetActorRotations();
+
 			/* Move the new root actors by their offset via the offset timeline. Re-enables physics states when done*/
 			SplitTimelineComp->Play();
 		}
@@ -195,21 +197,21 @@ void ATimeSplitter::PreserveActorsPhysicsStates()
 	//Add tag to every actor component simulating physics to remember them
 	for (AActor* Actor : ActorsToDupe)
 	{
-		if (Actor->GetRootComponent()->IsSimulatingPhysics())
+		if (Actor && Actor->GetRootComponent()->IsSimulatingPhysics())
 		{
 			Actor->Tags.Add(TEXT("EnablePhysics"));
 		}
 	}
 	for (AActor* Actor : ActorsStayWithDupes)
 	{
-		if (Actor->GetRootComponent()->IsSimulatingPhysics())
+		if (Actor && Actor->GetRootComponent()->IsSimulatingPhysics())
 		{
 			Actor->Tags.Add(TEXT("EnablePhysics"));
 		}
 	}
 	for (AActor* Actor : ActorsStayWithOriginals)
 	{
-		if (Actor->GetRootComponent()->IsSimulatingPhysics())
+		if (Actor && Actor->GetRootComponent()->IsSimulatingPhysics())
 		{
 			Actor->Tags.Add(TEXT("EnablePhysics"));
 		}
@@ -223,7 +225,7 @@ void ATimeSplitter::DisableActors()
 	{
 		Actor->SetActorEnableCollision(false);
 
-		if (Actor->ActorHasTag(TEXT("EnablePhysics")))
+		if (Actor && Actor->ActorHasTag(TEXT("EnablePhysics")))
 		{
 			UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
 			if (ActorPhysicsRoot)
@@ -236,7 +238,7 @@ void ATimeSplitter::DisableActors()
 	{
 		Actor->SetActorEnableCollision(false);
 
-		if (Actor->ActorHasTag(TEXT("EnablePhysics")))
+		if (Actor && Actor->ActorHasTag(TEXT("EnablePhysics")))
 		{
 			UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
 			if (ActorPhysicsRoot)
@@ -249,7 +251,7 @@ void ATimeSplitter::DisableActors()
 	{
 		Actor->SetActorEnableCollision(false);
 
-		if (Actor->ActorHasTag(TEXT("EnablePhysics")))
+		if (Actor && Actor->ActorHasTag(TEXT("EnablePhysics")))
 		{
 			UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
 			if (ActorPhysicsRoot)
@@ -262,7 +264,7 @@ void ATimeSplitter::DisableActors()
 	{
 		Actor->SetActorEnableCollision(false);
 
-		if (Actor->ActorHasTag(TEXT("EnablePhysics")))
+		if (Actor && Actor->ActorHasTag(TEXT("EnablePhysics")))
 		{
 			UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
 			if (ActorPhysicsRoot)
@@ -271,6 +273,16 @@ void ATimeSplitter::DisableActors()
 			}
 		}
 	}
+
+	if (Player)
+	{
+		Player->SetActorEnableCollision(false);
+	}
+
+	if (ClonedPlayer)
+	{
+		ClonedPlayer->SetActorEnableCollision(false);
+	}
 }
 
 void ATimeSplitter::DupeActors()
@@ -278,18 +290,20 @@ void ATimeSplitter::DupeActors()
 	/* Duplicate each actor and add to dupe array */
 	for (AActor* OriginalActor : ActorsToDupe)
 	{
-		//Set values for the spawn
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.Template = OriginalActor;
-		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-		//Spawn dupe actor
-		AActor* DupedActor = GetWorld()->SpawnActor<AActor>(OriginalActor->GetClass(), SpawnParams);
-		if (DupedActor)
+		if (OriginalActor)
 		{
-			DupedActor->GetRootComponent()->SetMobility(EComponentMobility::Movable);
-			DupedActors.Add(DupedActor);
+			//Set values for the spawn
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.Template = OriginalActor;
+			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
+			//Spawn dupe actor
+			AActor* DupedActor = GetWorld()->SpawnActor<AActor>(OriginalActor->GetClass(), SpawnParams);
+			if (DupedActor)
+			{
+				DupedActor->GetRootComponent()->SetMobility(EComponentMobility::Movable);
+				DupedActors.Add(DupedActor);
+			}
 		}
 	}
 }
@@ -312,84 +326,104 @@ void ATimeSplitter::ClonePlayer()
 
 void ATimeSplitter::AttachActorsToRoots()
 {
-	/* Once duplicated, attach all actors in each array to the first actor IF array is larger than 1 actor*/
-	if (ActorsToDupe.Num() > 1)
-	{
-		RootOfOriginals = ActorsToDupe[0];
+	bool RootsFound = SetActorRoots();
 
-		for (int i = 1; i < ActorsToDupe.Num(); i++)
+	if (RootsFound)
+	{
+		/* Once duplicated, attach all actors in each array to the first actor IF array is larger than 1 actor*/
+		if (ActorsToDupe.Num() > 1)
 		{
-			ActorsToDupe[i]->AttachToActor(RootOfOriginals, FAttachmentTransformRules::KeepWorldTransform);
+			for (int i = 1; i < ActorsToDupe.Num(); i++)
+			{
+				if (ActorsToDupe[i])
+				{
+					ActorsToDupe[i]->AttachToActor(RootOfOriginals, FAttachmentTransformRules::KeepWorldTransform);
+				}
+			}
 		}
 
-		//Store original location of root actor for relative translation afterwards
-		OriginalRootLocation = RootOfOriginals->GetActorLocation();
-	}
-
-	if (DupedActors.Num() > 1)
-	{
-		RootOfDupes = DupedActors[0];
-
-		for (int i = 1; i < DupedActors.Num(); i++)
+		if (DupedActors.Num() > 1)
 		{
-			DupedActors[i]->AttachToActor(RootOfDupes, FAttachmentTransformRules::KeepWorldTransform);
+			for (int i = 1; i < DupedActors.Num(); i++)
+			{
+				if (DupedActors[i])
+				{
+					DupedActors[i]->AttachToActor(RootOfDupes, FAttachmentTransformRules::KeepWorldTransform);
+				}
+			}
 		}
-
-		//Store original location of root actor for relative translation afterwards
-		DupeRootLocation = RootOfDupes->GetActorLocation();
 	}
+	
 
 	//Attach non-dupeing actors to respective roots
 	for (AActor* Actor : ActorsStayWithOriginals)
 	{
-		bool AttachSucc = Actor->AttachToActor(RootOfOriginals, FAttachmentTransformRules::KeepWorldTransform);
-		UE_LOG(LogTemp, Display, TEXT("Attach to originals result: %d"), AttachSucc);
+		if (Actor)
+		{
+			bool AttachSucc = Actor->AttachToActor(RootOfOriginals, FAttachmentTransformRules::KeepWorldTransform);
+			UE_LOG(LogTemp, Display, TEXT("Attach to originals result: %d"), AttachSucc);
+		}
 	}
 	for (AActor* Actor : ActorsStayWithDupes)
 	{
-		bool AttachSucc = Actor->AttachToActor(RootOfDupes, FAttachmentTransformRules::KeepWorldTransform);
-		UE_LOG(LogTemp, Display, TEXT("Attach to dupes result: %d"), AttachSucc);
+		if (Actor)
+		{
+			bool AttachSucc = Actor->AttachToActor(RootOfDupes, FAttachmentTransformRules::KeepWorldTransform);
+			UE_LOG(LogTemp, Display, TEXT("Attach to dupes result: %d"), AttachSucc);
+		}
 	}
 }
 
 void ATimeSplitter::DetachActorsFromRoots()
 {
-	/* Detach all actors in each array from the first actor IF array is larger than 1 actor*/
-	if (ActorsToDupe.Num() > 1)
+	bool RootsFound = SetActorRoots();
+
+	if (RootsFound)
 	{
-		RootOfOriginals = ActorsToDupe[0];
-		
-
-		//Store original location of root actor for relative translation afterwards
-		OriginalRootLocation = RootOfOriginals->GetActorLocation();
-
-		for (int i = 1; i < ActorsToDupe.Num(); i++)
+		/* Detach all actors in each array from the first actor IF array is larger than 1 actor*/
+		if (ActorsToDupe.Num() > 1)
 		{
-			ActorsToDupe[i]->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			//Store original location of root actor for relative translation afterwards
+			OriginalRootLocation = RootOfOriginals->GetActorLocation();
+
+			for (int i = 1; i < ActorsToDupe.Num(); i++)
+			{
+				if (ActorsToDupe[i])
+				{
+					ActorsToDupe[i]->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+				}
+			}
 		}
-	}
 
-	if (DupedActors.Num() > 1)
-	{
-		RootOfDupes = DupedActors[0];
-
-		//Store original location of root actor for relative translation afterwards
-		DupeRootLocation = RootOfDupes->GetActorLocation();
-
-		for (int i = 1; i < DupedActors.Num(); i++)
+		if (DupedActors.Num() > 1)
 		{
-			DupedActors[i]->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-		}
-	}
+			//Store original location of root actor for relative translation afterwards
+			DupeRootLocation = RootOfDupes->GetActorLocation();
 
-	//Attach non-dupeing actors to respective roots
-	for (AActor* Actor : ActorsStayWithOriginals)
-	{
-		Actor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-	}
-	for (AActor* Actor : ActorsStayWithDupes)
-	{
-		Actor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			for (int i = 1; i < DupedActors.Num(); i++)
+			{
+				if (DupedActors[i])
+				{
+					DupedActors[i]->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+				}
+			}
+		}
+
+		//Attach non-dupeing actors to respective roots
+		for (AActor* Actor : ActorsStayWithOriginals)
+		{
+			if (Actor)
+			{
+				Actor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			}
+		}
+		for (AActor* Actor : ActorsStayWithDupes)
+		{
+			if (Actor)
+			{
+				Actor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			}
+		}
 	}
 }
 
@@ -398,55 +432,77 @@ void ATimeSplitter::ReenableActors()
 	//Re-enable physics and collision for actors
 	for (AActor* Actor : ActorsToDupe)
 	{
-		Actor->SetActorEnableCollision(true);
-
-		if (Actor->ActorHasTag(TEXT("EnablePhysics")))
+		if (Actor)
 		{
-			UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
-			if (ActorPhysicsRoot)
+			Actor->SetActorEnableCollision(true);
+
+			if (Actor->ActorHasTag(TEXT("EnablePhysics")))
 			{
-				ActorPhysicsRoot->SetSimulatePhysics(true);
+				UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+				if (ActorPhysicsRoot)
+				{
+					ActorPhysicsRoot->SetSimulatePhysics(true);
+				}
 			}
 		}
 	}
 	for (AActor* Actor : DupedActors)
 	{
-		Actor->SetActorEnableCollision(true);
-
-		if (Actor->ActorHasTag(TEXT("EnablePhysics")))
+		if (Actor)
 		{
-			UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
-			if (ActorPhysicsRoot)
+			Actor->SetActorEnableCollision(true);
+
+			if (Actor->ActorHasTag(TEXT("EnablePhysics")))
 			{
-				ActorPhysicsRoot->SetSimulatePhysics(true);
+				UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+				if (ActorPhysicsRoot)
+				{
+					ActorPhysicsRoot->SetSimulatePhysics(true);
+				}
 			}
 		}
 	}
 	for (AActor* Actor : ActorsStayWithDupes)
 	{
-		Actor->SetActorEnableCollision(true);
-
-		if (Actor->ActorHasTag(TEXT("EnablePhysics")))
+		if (Actor)
 		{
-			UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
-			if (ActorPhysicsRoot)
+			Actor->SetActorEnableCollision(true);
+
+			if (Actor->ActorHasTag(TEXT("EnablePhysics")))
 			{
-				ActorPhysicsRoot->SetSimulatePhysics(true);
+				UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+				if (ActorPhysicsRoot)
+				{
+					ActorPhysicsRoot->SetSimulatePhysics(true);
+				}
 			}
 		}
 	}
 	for (AActor* Actor : ActorsStayWithOriginals)
 	{
-		Actor->SetActorEnableCollision(true);
-
-		if (Actor->ActorHasTag(TEXT("EnablePhysics")))
+		if (Actor)
 		{
-			UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
-			if (ActorPhysicsRoot)
+			Actor->SetActorEnableCollision(true);
+
+			if (Actor->ActorHasTag(TEXT("EnablePhysics")))
 			{
-				ActorPhysicsRoot->SetSimulatePhysics(true);
+				UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+				if (ActorPhysicsRoot)
+				{
+					ActorPhysicsRoot->SetSimulatePhysics(true);
+				}
 			}
 		}
+	}
+
+	if (Player)
+	{
+		Player->SetActorEnableCollision(true);
+	}
+
+	if (ClonedPlayer)
+	{
+		ClonedPlayer->SetActorEnableCollision(true);
 	}
 }
 
@@ -456,15 +512,21 @@ void ATimeSplitter::DestroyDesignatedActors()
 	{
 		for (AActor* Actor : ActorsWontMakeIt)
 		{
-			Actor->Destroy();
+			if(Actor)
+				Actor->Destroy();
 		}
 	}
 	for (AActor* Actor : DupedActors)
 	{
-		Actor->Destroy();
+		if(Actor)
+			Actor->Destroy();
 	}
-	Player->RemoveClone(ClonedPlayer);
-	ClonedPlayer->Destroy();
+	if (ClonedPlayer)
+	{
+		Player->RemoveClone(ClonedPlayer);
+		ClonedPlayer->Destroy();
+		ClonedPlayer = nullptr;
+	}
 }
 
 void ATimeSplitter::UpdateActorsOffsets(FVector OffsetOutput)
@@ -479,6 +541,36 @@ void ATimeSplitter::UpdateActorsOffsets(FVector OffsetOutput)
 	{
 		Player->SetActorLocation(OriginalPlayerLocation + OffsetOutput);
 		ClonedPlayer->SetActorLocation(OriginalCloneLocation - OffsetOutput);
+	}
+}
+
+void ATimeSplitter::UpdateActorsRotations(FVector RotationOutput)
+{
+	if (RootOfOriginals && RootOfDupes)
+	{ 
+		FRotator NewRotation = OriginalRootRotation;
+		NewRotation.Roll += RotationOutput.X;
+		NewRotation.Pitch += RotationOutput.Y;
+		NewRotation.Yaw += RotationOutput.Z;
+		RootOfOriginals->SetActorRotation(NewRotation);
+
+		NewRotation = DupeRootRotation;
+		NewRotation.Roll -= RotationOutput.X;
+		NewRotation.Pitch -= RotationOutput.Y;
+		NewRotation.Yaw -= RotationOutput.Z;
+		RootOfDupes->SetActorRotation(NewRotation);
+	}
+}
+
+void ATimeSplitter::UpdateCloneRotations(FVector RotationOutput)
+{
+	if (ClonedPlayer)
+	{
+		FRotator NewRotation = OriginalCloneRotation;
+		NewRotation.Roll -= RotationOutput.X;
+		NewRotation.Pitch -= RotationOutput.Y;
+		NewRotation.Yaw -= RotationOutput.Z;
+		ClonedPlayer->SetActorRotation(NewRotation);
 	}
 }
 
@@ -512,6 +604,7 @@ void ATimeSplitter::EndReverseTimelineDelegate()
 
 		Player->RemoveClone(ClonedPlayer);
 		ClonedPlayer->Destroy();
+		ClonedPlayer = nullptr;
 
 		DetachActorsFromRoots();
 
@@ -576,6 +669,151 @@ void ATimeSplitter::Tick(float DeltaTime)
 
 }
 
+bool ATimeSplitter::SetActorRoots()
+{
+	//Get current offset
+	float CurveMin;
+	float CurveMax;
+	SplitOffsetVectorCurve->GetTimeRange(CurveMin, CurveMax);
+	FVector CurrentOffset;
+
+	if (bTimeIsSplit)
+	{
+		CurrentOffset = SplitOffsetVectorCurve->GetVectorValue(CurveMax);
+	}
+	else
+	{
+		CurrentOffset = SplitOffsetVectorCurve->GetVectorValue(CurveMin);
+	}
+
+	//Set new root locations of non-player actors
+
+	bool OriginalRootFound = false;
+	bool DupeRootFound = false;
+
+	if (ActorsToDupe.Num() > 0)
+	{
+		int32 index = 0;
+
+		while (!OriginalRootFound  && (ActorsToDupe.Num() > index))
+		{
+			if (ActorsToDupe[index])
+			{
+				RootOfOriginals = ActorsToDupe[index];
+				OriginalRootLocation = RootOfOriginals->GetActorLocation() - CurrentOffset;
+				OriginalRootFound = true;
+			}
+			index++;
+		}
+
+		if(!OriginalRootFound)
+			UE_LOG(LogTemp, Warning, TEXT("Root not found for originals"));
+	}
+
+	if (DupedActors.Num() > 0)
+	{
+		int32 index = 0;
+
+		while (!DupeRootFound && (DupedActors.Num() > index))
+		{
+			if (DupedActors[index])
+			{
+				RootOfDupes = DupedActors[index];
+				DupeRootLocation = RootOfDupes->GetActorLocation() + CurrentOffset;
+				DupeRootFound = true;
+			}
+			index++;
+		}
+
+		if (!DupeRootFound)
+			UE_LOG(LogTemp, Warning, TEXT("Root not found for dupes"));
+	}
+
+	if (!OriginalRootFound)
+		return false;
+	else
+		return true;
+}
+
+void ATimeSplitter::SetPlayerLocations()
+{
+	//Get current offset
+	float CurveMin;
+	float CurveMax;
+	SplitOffsetVectorCurve->GetTimeRange(CurveMin, CurveMax);
+	FVector CurrentOffset;
+
+	if (bTimeIsSplit)
+	{
+		CurrentOffset = SplitOffsetVectorCurve->GetVectorValue(CurveMax);
+	}
+	else
+	{
+		CurrentOffset = SplitOffsetVectorCurve->GetVectorValue(CurveMin);
+	}
+
+	if (Player)
+	{
+		OriginalPlayerLocation = Player->GetActorLocation() - CurrentOffset;
+	}
+
+	if (ClonedPlayer)
+	{
+		OriginalCloneLocation = ClonedPlayer->GetActorLocation() + CurrentOffset;
+	}
+}
+
+void ATimeSplitter::SetActorRotations()
+{
+	//Get current offset
+	float CurveMin;
+	float CurveMax;
+	SplitOffsetVectorCurve->GetTimeRange(CurveMin, CurveMax);
+	FVector CurrentOffset;
+
+	if (bTimeIsSplit)
+	{
+		CurrentOffset = SplitActorRotationVectorCurve->GetVectorValue(CurveMax);
+	}
+	else
+	{
+		CurrentOffset = SplitActorRotationVectorCurve->GetVectorValue(CurveMin);
+	}
+
+	if (RootOfOriginals)
+	{
+		OriginalRootRotation = RootOfOriginals->GetActorRotation();
+		OriginalRootRotation.Roll -= CurrentOffset.X;
+		OriginalRootRotation.Pitch -= CurrentOffset.Y;
+		OriginalRootRotation.Yaw -= CurrentOffset.Z;
+	}
+
+	if (RootOfDupes)
+	{
+		DupeRootRotation = RootOfDupes->GetActorRotation();
+		DupeRootRotation.Roll += CurrentOffset.X;
+		DupeRootRotation.Pitch += CurrentOffset.Y;
+		DupeRootRotation.Yaw += CurrentOffset.Z;
+	}
+
+	if (Player)
+	{
+		OriginalPlayerRotation = Player->GetActorRotation();
+		OriginalPlayerRotation.Roll -= CurrentOffset.X;
+		OriginalPlayerRotation.Pitch -= CurrentOffset.Y;
+		OriginalPlayerRotation.Yaw -= CurrentOffset.Z;
+	}
+
+	if (ClonedPlayer)
+	{
+		OriginalCloneRotation = ClonedPlayer->GetActorRotation();
+		OriginalCloneRotation.Roll += CurrentOffset.X;
+		OriginalCloneRotation.Pitch += CurrentOffset.Y;
+		OriginalCloneRotation.Yaw += CurrentOffset.Z;
+	}
+}
+
+
 void ATimeSplitter::RecordActorResetTransforms()
 {
 	for (AActor* Actor : ActorsToDupe)
@@ -622,6 +860,11 @@ void ATimeSplitter::MoveActorsToResetTransform()
 		Actor->SetActorTransform(StayWithDupesResetTransforms[index]);
 		index++;
 	}
+
+	if (Player)
+		Player->SetActorLocation(OriginalPlayerLocation);
+	if (ClonedPlayer)
+		ClonedPlayer->SetActorLocation(OriginalCloneLocation);
 }
 
 void ATimeSplitter::ClearDupedActors()

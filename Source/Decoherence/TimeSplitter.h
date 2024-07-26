@@ -34,9 +34,17 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 	class UTimelineComponent* SplitTimelineComp;
 
-	/** Offset curve that determines motion of the split actors*/
+	/** Offset curve that determines translation of the split actors*/
 	UPROPERTY(EditAnywhere, Category = "Time Split")
 	UCurveVector* SplitOffsetVectorCurve;
+
+	/** Offset curve that determines rotation of the split actors*/
+	UPROPERTY(EditAnywhere, Category = "Time Split")
+	UCurveVector* SplitActorRotationVectorCurve;
+
+	/** Offset curve that determines rotation of the clone*/
+	UPROPERTY(EditAnywhere, Category = "Time Split")
+	UCurveVector* SplitCloneRotationVectorCurve;
 
 	/** Input mapping context to give to player for split time*/
 	UPROPERTY(EditAnywhere, Category = "Time Split")
@@ -102,6 +110,8 @@ protected:
 	TArray<AActor*> ActorsWontMakeIt;
 
 	FOnTimelineVector UpdateOffsetTrack;
+	FOnTimelineVector UpdateActorRotationTrack;
+	FOnTimelineVector UpdateCloneRotationTrack;
 
 	FOnTimelineEvent ReenableActorsEvent;
 	FOnTimelineEvent DestroyDesignatedActorsEvent;
@@ -109,6 +119,12 @@ protected:
 	/* Move actors according to the movement curve*/
 	UFUNCTION()
 	void UpdateActorsOffsets(FVector OffsetOutput);
+	/* Rotate actors according to the roation curve*/
+	UFUNCTION()
+	void UpdateActorsRotations(FVector RotationOutput);
+	/* Rotate clone according to the roation curve*/
+	UFUNCTION()
+	void UpdateCloneRotations(FVector RotationOutput);
 	/* Re-enable all disabled actors*/
 	UFUNCTION()
 	void EndTimelineDelegate();
@@ -126,11 +142,19 @@ private:
 
 	FVector OriginalRootLocation;
 	FVector DupeRootLocation;
+	FRotator OriginalRootRotation;
+	FRotator DupeRootRotation;
 	AActor* RootOfOriginals;
 	AActor* RootOfDupes;
 
+	bool SetActorRoots();
+	void SetPlayerLocations();
+	void SetActorRotations();
+
 	FVector OriginalPlayerLocation;
 	FVector OriginalCloneLocation;
+	FRotator OriginalPlayerRotation;
+	FRotator OriginalCloneRotation;
 	class ADecoherenceCharacter* Player;
 	class ADecoherenceCharacter* ClonedPlayer;
 
