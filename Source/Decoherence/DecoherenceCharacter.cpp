@@ -10,6 +10,8 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "Engine/LocalPlayer.h"
+#include "Kismet/GameplayStatics.h"
+#include "DecoherenceGameMode.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -76,6 +78,9 @@ void ADecoherenceCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ADecoherenceCharacter::Look);
+
+		// Pausing
+		EnhancedInputComponent->BindAction(PauseAction, ETriggerEvent::Triggered, this, &ADecoherenceCharacter::Pause);
 	}
 	else
 	{
@@ -152,6 +157,23 @@ void ADecoherenceCharacter::StopJumping()
 		for (ADecoherenceCharacter* Clone : PlayerClones)
 		{
 			Clone->StopJumping();
+		}
+	}
+}
+
+void ADecoherenceCharacter::Pause()
+{
+	ADecoherenceGameMode* GameMode = Cast<ADecoherenceGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+	
+	if (GameMode)
+	{
+		if (GameMode->IsPaused())
+		{
+			GameMode->UnPauseGame();
+		}
+		else
+		{
+			GameMode->PauseGame();
 		}
 	}
 }

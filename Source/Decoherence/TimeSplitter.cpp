@@ -37,10 +37,12 @@ void ATimeSplitter::UnSplit()
 	AttachActorsToRoots();
 
 	//Set player locations
-	SetPlayerLocations();
+	if(SplitOffsetVectorCurve)
+		SetPlayerLocations();
 
 	//Set current actor rotations
-	SetActorRotations();
+	if(SplitActorRotationVectorCurve)
+		SetActorRotations();
 
 	/* Move the new root actors by their offset via the offset timeline. Re-enables physics states when done*/
 	SplitTimelineComp->Reverse();
@@ -60,7 +62,8 @@ void ATimeSplitter::ResetSplit()
 	bTimeIsResetting = true;
 
 	//Set current actor rotations
-	SetActorRotations();
+	if (SplitActorRotationVectorCurve)
+		SetActorRotations();
 
 	/* Move the new root actors by their offset via the offset timeline. Re-enables physics states when done*/
 	SplitTimelineComp->Reverse();
@@ -179,7 +182,8 @@ void ATimeSplitter::SplitTime()
 			AttachActorsToRoots();
 
 			//Set current actor rotations
-			SetActorRotations();
+			if (SplitActorRotationVectorCurve)
+				SetActorRotations();
 
 			/* Move the new root actors by their offset via the offset timeline. Re-enables physics states when done*/
 			SplitTimelineComp->Play();

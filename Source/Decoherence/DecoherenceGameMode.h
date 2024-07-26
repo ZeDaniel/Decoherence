@@ -13,6 +13,24 @@ class ADecoherenceGameMode : public AGameModeBase
 
 public:
 	ADecoherenceGameMode();
+
+	UFUNCTION(BlueprintCallable)
+	void PauseGame();
+	UFUNCTION(BlueprintCallable)
+	void UnPauseGame();
+	UFUNCTION(BlueprintCallable)
+	void RestartLevel();
+
+	bool GamePaused() { return bGamePaused; }
+
+protected:
+	UPROPERTY(EditDefaultsOnly, Category = "Pause")
+	TSubclassOf<UUserWidget> PauseWidgetClass;
+
+private:
+
+	bool bGamePaused = false;
+	UUserWidget* PauseWidget;
 };
 
 

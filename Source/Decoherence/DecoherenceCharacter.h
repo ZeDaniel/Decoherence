@@ -36,6 +36,7 @@ class ADecoherenceCharacter : public ACharacter
 	/** Move Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
 	UInputAction* MoveAction;
+
 	
 public:
 	ADecoherenceCharacter();
@@ -46,6 +47,10 @@ public:
 
 protected:
 	virtual void BeginPlay();
+
+	/** Pause Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
+	UInputAction* PauseAction;
 
 private:
 	/* Array of clones of Player. Send input to it if not null*/
@@ -68,6 +73,8 @@ protected:
 	virtual void Jump() override;
 	/** Override for stop jumping. Used to call clone stop jumping*/
 	virtual void StopJumping() override;
+
+	void Pause();
 
 protected:
 	// APawn interface
