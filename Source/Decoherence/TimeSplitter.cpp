@@ -8,6 +8,7 @@
 #include "TimeMender.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 // Sets default values
 ATimeSplitter::ATimeSplitter()
@@ -227,53 +228,65 @@ void ATimeSplitter::DisableActors()
 	//disable physics for every actor simulating physics
 	for (AActor* Actor : ActorsToDupe)
 	{
-		Actor->SetActorEnableCollision(false);
-
-		if (Actor && Actor->ActorHasTag(TEXT("EnablePhysics")))
+		if (Actor)
 		{
-			UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
-			if (ActorPhysicsRoot)
+			Actor->SetActorEnableCollision(false);
+
+			if (Actor->ActorHasTag(TEXT("EnablePhysics")))
 			{
-				ActorPhysicsRoot->SetSimulatePhysics(false);
+				UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+				if (ActorPhysicsRoot)
+				{
+					ActorPhysicsRoot->SetSimulatePhysics(false);
+				}
 			}
 		}
 	}
 	for (AActor* Actor : DupedActors)
 	{
-		Actor->SetActorEnableCollision(false);
-
-		if (Actor && Actor->ActorHasTag(TEXT("EnablePhysics")))
+		if (Actor)
 		{
-			UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
-			if (ActorPhysicsRoot)
+			Actor->SetActorEnableCollision(false);
+
+			if (Actor->ActorHasTag(TEXT("EnablePhysics")))
 			{
-				ActorPhysicsRoot->SetSimulatePhysics(false);
+				UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+				if (ActorPhysicsRoot)
+				{
+					ActorPhysicsRoot->SetSimulatePhysics(false);
+				}
 			}
 		}
 	}
 	for (AActor* Actor : ActorsStayWithDupes)
 	{
-		Actor->SetActorEnableCollision(false);
-
-		if (Actor && Actor->ActorHasTag(TEXT("EnablePhysics")))
+		if (Actor)
 		{
-			UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
-			if (ActorPhysicsRoot)
+			Actor->SetActorEnableCollision(false);
+
+			if (Actor->ActorHasTag(TEXT("EnablePhysics")))
 			{
-				ActorPhysicsRoot->SetSimulatePhysics(false);
+				UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+				if (ActorPhysicsRoot)
+				{
+					ActorPhysicsRoot->SetSimulatePhysics(false);
+				}
 			}
 		}
 	}
 	for (AActor* Actor : ActorsStayWithOriginals)
 	{
-		Actor->SetActorEnableCollision(false);
-
-		if (Actor && Actor->ActorHasTag(TEXT("EnablePhysics")))
+		if (Actor)
 		{
-			UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
-			if (ActorPhysicsRoot)
+			Actor->SetActorEnableCollision(false);
+
+			if (Actor->ActorHasTag(TEXT("EnablePhysics")))
 			{
-				ActorPhysicsRoot->SetSimulatePhysics(false);
+				UPrimitiveComponent* ActorPhysicsRoot = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+				if (ActorPhysicsRoot)
+				{
+					ActorPhysicsRoot->SetSimulatePhysics(false);
+				}
 			}
 		}
 	}
@@ -281,6 +294,11 @@ void ATimeSplitter::DisableActors()
 	if (Player)
 	{
 		Player->SetActorEnableCollision(false);
+		APlayerController* PlayerController = Cast<APlayerController>(Player->GetController());
+		if (PlayerController)
+		{
+			Player->DisableInput(PlayerController);
+		}
 	}
 
 	if (ClonedPlayer)
@@ -320,6 +338,10 @@ void ATimeSplitter::ClonePlayer()
 	ClonedPlayer = GetWorld()->SpawnActor<ADecoherenceCharacter>(CloneCharacterClass, Player->GetActorLocation(), Player->GetActorRotation(), SpawnParams);
 	if (ClonedPlayer && Player)
 	{
+		//Drop all movement for player and clone
+		Player->GetCharacterMovement()->StopMovementImmediately();
+		ClonedPlayer->GetCharacterMovement()->StopMovementImmediately();
+
 		ClonedPlayer->SetOwner(Player);
 		Player->AddClone(ClonedPlayer);
 		//Store original location of player for relative translation afterwards
@@ -502,6 +524,12 @@ void ATimeSplitter::ReenableActors()
 	if (Player)
 	{
 		Player->SetActorEnableCollision(true);
+
+		APlayerController* PlayerController = Cast<APlayerController>(Player->GetController());
+		if (PlayerController)
+		{
+			Player->EnableInput(PlayerController);
+		}
 	}
 
 	if (ClonedPlayer)
@@ -822,19 +850,31 @@ void ATimeSplitter::RecordActorResetTransforms()
 {
 	for (AActor* Actor : ActorsToDupe)
 	{
-		ActorsToDupeResetTransforms.Add(Actor->GetActorTransform());
+		if (Actor)
+		{
+			ActorsToDupeResetTransforms.Add(Actor->GetActorTransform());
+		}
 	}
 	for (AActor* Actor : DupedActors)
 	{
-		DupedActorsResetTransforms.Add(Actor->GetActorTransform());
+		if (Actor)
+		{
+			DupedActorsResetTransforms.Add(Actor->GetActorTransform());
+		}
 	}
 	for (AActor* Actor : ActorsStayWithDupes)
 	{
-		StayWithOriginalsResetTransforms.Add(Actor->GetActorTransform());
+		if (Actor)
+		{
+			StayWithOriginalsResetTransforms.Add(Actor->GetActorTransform());
+		}
 	}
 	for (AActor* Actor : ActorsStayWithOriginals)
 	{
-		StayWithDupesResetTransforms.Add(Actor->GetActorTransform());
+		if (Actor)
+		{
+			StayWithDupesResetTransforms.Add(Actor->GetActorTransform());
+		}
 	}
 }
 
@@ -843,26 +883,38 @@ void ATimeSplitter::MoveActorsToResetTransform()
 	int32 index = 0;
 	for (AActor* Actor : ActorsToDupe)
 	{
-		Actor->SetActorTransform(ActorsToDupeResetTransforms[index]);
-		index++;
+		if (Actor)
+		{
+			Actor->SetActorTransform(ActorsToDupeResetTransforms[index]);
+			index++;
+		}
 	}
 	index = 0;
 	for (AActor* Actor : DupedActors)
 	{
-		Actor->SetActorTransform(DupedActorsResetTransforms[index]);
-		index++;
+		if (Actor)
+		{
+			Actor->SetActorTransform(DupedActorsResetTransforms[index]);
+			index++;
+		}
 	}
 	index = 0;
 	for (AActor* Actor : ActorsStayWithDupes)
 	{
-		Actor->SetActorTransform(StayWithOriginalsResetTransforms[index]);
-		index++;
+		if (Actor)
+		{
+			Actor->SetActorTransform(StayWithOriginalsResetTransforms[index]);
+			index++;
+		}
 	}
 	index = 0;
 	for (AActor* Actor : ActorsStayWithOriginals)
 	{
-		Actor->SetActorTransform(StayWithDupesResetTransforms[index]);
-		index++;
+		if (Actor)
+		{
+			Actor->SetActorTransform(StayWithDupesResetTransforms[index]);
+			index++;
+		}
 	}
 
 	if (Player)
